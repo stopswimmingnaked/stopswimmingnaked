@@ -15,6 +15,7 @@ import os
 from dotenv import load_dotenv
 import openai
 from io import StringIO
+import time
 
 # Load environment variables
 load_dotenv()
@@ -76,10 +77,12 @@ if st.button('Analyze'):
         if r.status_code == 200:
             df = pd.read_csv(StringIO(r.text), sep="|", names=["ticker", "cik"])
             df['ticker'] = df['ticker'].str.upper()
-            ticker_input = ticker.upper().replace("-", ".")
+            ticker_input = ticker.upper()  # Do not replace dash with dot
+            st.caption(f"Looking for {ticker_input} in ticker list...")
             match = df[df['ticker'] == ticker_input]
             if not match.empty:
                 cik = str(match.iloc[0]['cik']).zfill(10)
+                st.caption(f"CIK found: {cik}")
 
         if cik:
             concept_codes = {
@@ -99,11 +102,18 @@ if st.button('Analyze'):
 
             for label, concept in concept_codes.items():
                 url = f"https://data.sec.gov/api/xbrl/companyconcept/CIK{cik}/us-gaap/{concept}.json"
+                st.caption(f"Requesting: {url}")
                 try:
                     facts_res = requests.get(url, headers=headers)
                     if facts_res.status_code != 200:
+                        st.warning(f"SEC returned status code {facts_res.status_code} for {concept}")
                         continue
-                    facts = facts_res.json()
+                    try:
+                        facts = facts_res.json()
+                    except Exception as e:
+                        st.error(f"Could not parse JSON for {concept}: {e}")
+                        continue
+
                     data = facts.get("units", {}).get("USD", [])
                     df = pd.DataFrame(data)
                     df = df[df['form'] == '10-Q']
@@ -114,6 +124,8 @@ if st.button('Analyze'):
                         summary_data = df
                     else:
                         summary_data = pd.merge(summary_data, df, on='end', how='outer')
+
+                    time.sleep(0.5)  # rate limit safety
                 except Exception as e:
                     st.warning(f"Could not fetch {label}: {e}")
 
@@ -126,7 +138,10 @@ if st.button('Analyze'):
             st.subheader("Most Recent Net Income")
             try:
                 ni_url = f"https://data.sec.gov/api/xbrl/companyconcept/CIK{cik}/us-gaap/NetIncomeLoss.json"
+                st.caption(f"Requesting: {ni_url}")
                 ni_res = requests.get(ni_url, headers=headers)
+                if ni_res.status_code != 200:
+                    st.warning(f"SEC returned status code {ni_res.status_code} for Net Income")
                 ni_data = ni_res.json().get("units", {}).get("USD", [])
                 df = pd.DataFrame(ni_data)
                 df = df[df['form'].isin(['10-K', '10-Q'])]
