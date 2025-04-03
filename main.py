@@ -20,14 +20,14 @@ from io import StringIO
 load_dotenv()
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-st.set_page_config(page_title="stopswimmingnaked.com", layout="wide")
+st.set_page_config(page_title="stopswimmingnaked", layout="wide")
 
 # Minimalist UI influenced by Dieter Rams
 st.markdown("""
     <style>
     body {
-        background-color: #fdfdfd;
-        color: #111;
+        background-color: #f88c4c;
+        color: #a03c44;
         font-family: Helvetica Neue, sans-serif;
     }
     .block-container {
@@ -35,7 +35,7 @@ st.markdown("""
     }
     h1, h2, h3, h4 {
         font-weight: 400;
-        color: #111;
+        color: #a03c44;
     }
     .stButton button {
         background-color: #000;
@@ -47,7 +47,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title('stopswimmingnaked.com')
+st.title('stopswimmingnaked')
 st.markdown("""
 **A minimalist dashboard for deep company analysis.**
 """)
@@ -74,9 +74,10 @@ if st.button('Analyze'):
         url = "https://www.sec.gov/include/ticker.txt"
         r = requests.get(url, headers=headers)
         if r.status_code == 200:
-            df = pd.read_csv(StringIO(r.text), sep="|", names=["ticker", "cik", "name"])
+            df = pd.read_csv(StringIO(r.text), sep="|", names=["ticker", "cik"])
             df['ticker'] = df['ticker'].str.upper()
-            match = df[df['ticker'] == ticker.upper()]
+            ticker_input = ticker.upper().replace("-", ".")
+            match = df[df['ticker'] == ticker_input]
             if not match.empty:
                 cik = str(match.iloc[0]['cik']).zfill(10)
 
@@ -141,4 +142,3 @@ if st.button('Analyze'):
             st.warning("CIK not found for this ticker. Please try another.")
     except Exception as e:
         st.error(f"Failed to fetch SEC data: {e}")
-
