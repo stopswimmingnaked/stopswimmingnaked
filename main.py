@@ -138,3 +138,4 @@ if st.button('Analyze'):
             st.warning("CIK not found for this ticker. Please try another.")
     except Exception as e:
         st.error(f"Failed to fetch SEC data: {e}")
+
