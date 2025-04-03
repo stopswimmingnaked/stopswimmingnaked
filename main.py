@@ -14,12 +14,13 @@ import requests
 import os
 from dotenv import load_dotenv
 import openai
+from io import StringIO
 
 # Load environment variables
 load_dotenv()
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-st.set_page_config(page_title="stopswimmingnaked", layout="wide")
+st.set_page_config(page_title="stopswimmingnaked.com", layout="wide")
 
 # Minimalist UI influenced by Dieter Rams
 st.markdown("""
@@ -46,13 +47,13 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title('stopswimmingnaked')
+st.title('stopswimmingnaked.com')
 st.markdown("""
 **A minimalist dashboard for deep company analysis.**
 """)
 
 # --- Ticker Input ---
-ticker = st.text_input('Ticker Symbol', 'BRK-A', help="Enter a US stock ticker, like BRK-A or BRK-B")
+ticker = st.text_input('Ticker Symbol', 'AAPL', help="Enter a US stock ticker, like BRK-A or BRK-B")
 timeframe = st.selectbox('Chart Range', ['1d', '5d', '1mo', '6mo', '1y', '5y', '10y'])
 
 # --- Get Price Data and Chart ---
@@ -67,15 +68,17 @@ if st.button('Analyze'):
     # --- SEC EDGAR API for XBRL Financials ---
     st.subheader("Key Financial Metrics (from 10-Q filings)")
     headers = {"User-Agent": "Mozilla/5.0 (compatible; stopswimmingnaked/1.0)"}
-    cik_url = f"https://www.sec.gov/files/company_tickers.json"
+    cik = None
     try:
-        res = requests.get(cik_url, headers=headers)
-        cik_dict = res.json()
-        cik = None
-        for entry in cik_dict.values():
-            if entry['ticker'].lower() == ticker.lower():
-                cik = str(entry['cik_str']).zfill(10)
-                break
+        st.caption("Looking up CIK...")
+        url = "https://www.sec.gov/include/ticker.txt"
+        r = requests.get(url, headers=headers)
+        if r.status_code == 200:
+            df = pd.read_csv(StringIO(r.text), sep="|", names=["ticker", "cik", "name"])
+            df['ticker'] = df['ticker'].str.upper()
+            match = df[df['ticker'] == ticker.upper()]
+            if not match.empty:
+                cik = str(match.iloc[0]['cik']).zfill(10)
 
         if cik:
             concept_codes = {
