@@ -75,7 +75,7 @@ if st.button('Analyze'):
         url = "https://www.sec.gov/include/ticker.txt"
         r = requests.get(url, headers=headers)
         if r.status_code == 200:
-            df = pd.read_csv(StringIO(r.text), sep="|", names=["ticker", "cik"])
+            df = pd.read_csv(StringIO(r.text), sep="\t", names=["ticker", "cik"])
             df['ticker'] = df['ticker'].str.upper()
             ticker_input = ticker.upper()  # Do not replace dash with dot
             st.caption(f"Looking for {ticker_input} in ticker list...")
@@ -157,3 +157,4 @@ if st.button('Analyze'):
             st.warning("CIK not found for this ticker. Please try another.")
     except Exception as e:
         st.error(f"Failed to fetch SEC data: {e}")
+
