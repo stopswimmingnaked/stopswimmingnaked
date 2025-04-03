@@ -77,7 +77,7 @@ if st.button('Analyze'):
         if r.status_code == 200:
             df = pd.read_csv(StringIO(r.text), sep="\t", names=["ticker", "cik"])
             df['ticker'] = df['ticker'].str.upper()
-            ticker_input = ticker.upper()  # Do not replace dash with dot
+            ticker_input = ticker.upper()
             st.caption(f"Looking for {ticker_input} in ticker list...")
             match = df[df['ticker'] == ticker_input]
             if not match.empty:
@@ -115,8 +115,15 @@ if st.button('Analyze'):
                         continue
 
                     data = facts.get("units", {}).get("USD", [])
+                    if not data:
+                        st.warning(f"No data found for {label}")
+                        continue
+
                     df = pd.DataFrame(data)
                     df = df[df['form'] == '10-Q']
+                    if df.empty:
+                        st.warning(f"No 10-Q filings found for {label}")
+                        continue
                     df['end'] = pd.to_datetime(df['end'])
                     df = df.sort_values(by='end', ascending=False).head(5)
                     df = df[['end', 'val']].rename(columns={'val': label})
@@ -129,7 +136,7 @@ if st.button('Analyze'):
                 except Exception as e:
                     st.warning(f"Could not fetch {label}: {e}")
 
-            if not isinstance(summary_data, list):
+            if not isinstance(summary_data, list) and not summary_data.empty:
                 summary_data = summary_data.sort_values(by='end', ascending=False)
                 st.dataframe(summary_data.rename(columns={'end': 'Quarter End'}), use_container_width=True)
             else:
@@ -143,13 +150,16 @@ if st.button('Analyze'):
                 if ni_res.status_code != 200:
                     st.warning(f"SEC returned status code {ni_res.status_code} for Net Income")
                 ni_data = ni_res.json().get("units", {}).get("USD", [])
-                df = pd.DataFrame(ni_data)
-                df = df[df['form'].isin(['10-K', '10-Q'])]
-                df['end'] = pd.to_datetime(df['end'])
-                df = df.sort_values(by='end', ascending=False).head(1)
-                st.dataframe(df[['form', 'fy', 'fp', 'end', 'val']].rename(columns={
-                    'form': 'Filing', 'fy': 'Year', 'fp': 'Period', 'end': 'End Date', 'val': 'Net Income ($USD)'
-                }), use_container_width=True)
+                if not ni_data:
+                    st.warning("No Net Income data available.")
+                else:
+                    df = pd.DataFrame(ni_data)
+                    df = df[df['form'].isin(['10-K', '10-Q'])]
+                    df['end'] = pd.to_datetime(df['end'])
+                    df = df.sort_values(by='end', ascending=False).head(1)
+                    st.dataframe(df[['form', 'fy', 'fp', 'end', 'val']].rename(columns={
+                        'form': 'Filing', 'fy': 'Year', 'fp': 'Period', 'end': 'End Date', 'val': 'Net Income ($USD)'
+                    }), use_container_width=True)
             except Exception as e:
                 st.warning(f"Could not fetch most recent Net Income: {e}")
 
@@ -157,4 +167,3 @@ if st.button('Analyze'):
             st.warning("CIK not found for this ticker. Please try another.")
     except Exception as e:
         st.error(f"Failed to fetch SEC data: {e}")
-
