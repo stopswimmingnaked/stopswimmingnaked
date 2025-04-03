@@ -19,7 +19,7 @@ import openai
 load_dotenv()
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-st.set_page_config(page_title="stopswimmingnaked.com", layout="wide")
+st.set_page_config(page_title="stopswimmingnaked", layout="wide")
 
 # Minimalist UI influenced by Dieter Rams
 st.markdown("""
@@ -52,7 +52,7 @@ st.markdown("""
 """)
 
 # --- Ticker Input ---
-ticker = st.text_input('Ticker Symbol', 'AAPL', help="Enter a US stock ticker, like AAPL or TSLA")
+ticker = st.text_input('Ticker Symbol', 'BRK-A', help="Enter a US stock ticker, like BRK-A or BRK-B")
 timeframe = st.selectbox('Chart Range', ['1d', '5d', '1mo', '6mo', '1y', '5y', '10y'])
 
 # --- Get Price Data and Chart ---
@@ -66,9 +66,10 @@ if st.button('Analyze'):
 
     # --- SEC EDGAR API for XBRL Financials ---
     st.subheader("Key Financial Metrics (from 10-Q filings)")
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; stopswimmingnaked/1.0)"}
     cik_url = f"https://www.sec.gov/files/company_tickers.json"
     try:
-        res = requests.get(cik_url)
+        res = requests.get(cik_url, headers=headers)
         cik_dict = res.json()
         cik = None
         for entry in cik_dict.values():
@@ -91,12 +92,14 @@ if st.button('Analyze'):
             }
 
             summary_data = []
-            headers = {"User-Agent": "FinancialDashboard/1.0"}
 
             for label, concept in concept_codes.items():
                 url = f"https://data.sec.gov/api/xbrl/companyconcept/CIK{cik}/us-gaap/{concept}.json"
                 try:
-                    facts = requests.get(url, headers=headers).json()
+                    facts_res = requests.get(url, headers=headers)
+                    if facts_res.status_code != 200:
+                        continue
+                    facts = facts_res.json()
                     data = facts.get("units", {}).get("USD", [])
                     df = pd.DataFrame(data)
                     df = df[df['form'] == '10-Q']
@@ -107,8 +110,8 @@ if st.button('Analyze'):
                         summary_data = df
                     else:
                         summary_data = pd.merge(summary_data, df, on='end', how='outer')
-                except:
-                    pass
+                except Exception as e:
+                    st.warning(f"Could not fetch {label}: {e}")
 
             if not isinstance(summary_data, list):
                 summary_data = summary_data.sort_values(by='end', ascending=False)
@@ -117,15 +120,19 @@ if st.button('Analyze'):
                 st.warning("No financial data available for display.")
 
             st.subheader("Most Recent Net Income")
-            ni_url = f"https://data.sec.gov/api/xbrl/companyconcept/CIK{cik}/us-gaap/NetIncomeLoss.json"
-            ni_data = requests.get(ni_url, headers=headers).json().get("units", {}).get("USD", [])
-            df = pd.DataFrame(ni_data)
-            df = df[df['form'].isin(['10-K', '10-Q'])]
-            df['end'] = pd.to_datetime(df['end'])
-            df = df.sort_values(by='end', ascending=False).head(1)
-            st.dataframe(df[['form', 'fy', 'fp', 'end', 'val']].rename(columns={
-                'form': 'Filing', 'fy': 'Year', 'fp': 'Period', 'end': 'End Date', 'val': 'Net Income ($USD)'
-            }), use_container_width=True)
+            try:
+                ni_url = f"https://data.sec.gov/api/xbrl/companyconcept/CIK{cik}/us-gaap/NetIncomeLoss.json"
+                ni_res = requests.get(ni_url, headers=headers)
+                ni_data = ni_res.json().get("units", {}).get("USD", [])
+                df = pd.DataFrame(ni_data)
+                df = df[df['form'].isin(['10-K', '10-Q'])]
+                df['end'] = pd.to_datetime(df['end'])
+                df = df.sort_values(by='end', ascending=False).head(1)
+                st.dataframe(df[['form', 'fy', 'fp', 'end', 'val']].rename(columns={
+                    'form': 'Filing', 'fy': 'Year', 'fp': 'Period', 'end': 'End Date', 'val': 'Net Income ($USD)'
+                }), use_container_width=True)
+            except Exception as e:
+                st.warning(f"Could not fetch most recent Net Income: {e}")
 
         else:
             st.warning("CIK not found for this ticker. Please try another.")
