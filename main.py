@@ -46,7 +46,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title('stopswimmingnaked.com')
+st.title('stopswimmingnaked')
 st.markdown("""
 **A minimalist dashboard for deep company analysis.**
 """)
